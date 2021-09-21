@@ -12,6 +12,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Bidirectional, LSTM, concatenate, Input
 from tensorflow.keras.layers import BatchNormalization as BatchNorm
 from tensorflow.keras import Model
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.optimizers import Adam
 from tensorflow.python.ops.gen_math_ops import xdivy_eager_fallback, xlog1py
 
 
@@ -123,9 +125,6 @@ def ProcessMidis(dir, seq_len):
     unique_dur = np.unique([i for s in original_durations for i in s])
     dur_to_int = dict(zip(unique_dur, list(range(0, len(unique_dur)))))
 
-    print(len(unique_chords))
-    print(len(unique_dur))
-
     # We also need dictionaries to convert the other way
     int_to_chord = {i: c for c, i in chord_to_int.items()}
     int_to_dur = {i: c for c, i in dur_to_int.items()}
@@ -142,14 +141,15 @@ def ProcessMidis(dir, seq_len):
     for s in range(len(original_chords)):
         # create a list of ints from the chord list
         chord_list = [chord_to_int[c] for c in original_chords[s]]
-        dur_list = [dur_to_int[d] for d in original_durations[s]]
-
         # make sequences 32 in length and add to the training lists
         for i in range(len(chord_list) - seq_len):
             train_chords.append(chord_list[i:i+seq_len])
-            train_dur.append(dur_list[i:i+seq_len])
-
             target_chords.append(chord_list[i+1])
+            
+    for d in range(len(original_durations)):
+        dur_list = [dur_to_int[s] for s in original_durations[d]]
+        for i in range(len(dur_list)-seq_len):
+            train_dur.append(dur_list[i:i+seq_len])
             target_dur.append(dur_list[i+1])
 
     # Reshape to fit LSTM
@@ -162,9 +162,12 @@ def ProcessMidis(dir, seq_len):
     target_chords = np_utils.to_categorical(target_chords)
     target_dur = np_utils.to_categorical(target_dur)
 
+    no_chords = target_chords.shape[1]
+    no_dur = target_dur.shape[1]
 
-    no_chords = len(unique_chords)
-    no_dur = len(unique_dur)
+    print(target_chords.shape)
+    print(target_dur.shape)
+    print(input_dur.shape)
 
     return (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur)
 
@@ -223,20 +226,38 @@ def create_lstm(input_chords, no_chords, input_dur, no_dur):
 
     return model
 
+def train(model, input_chords, input_dur, target_chords, target_dur):
+
+    filepath = "weights-improvement-{epoch:02d}-{loss:.4f}-bigger.hdf5"
+    checkpoint = ModelCheckpoint(
+		filepath,
+		monitor='loss',
+		verbose=0,
+		save_best_only=True,
+		mode='min'
+	)
+    callbacks_list = [checkpoint]
+
+    model.fit([input_chords, input_dur],[target_chords, target_dur], epochs=1000, batch_size=64, callbacks=callbacks_list, verbose=1)
+
+
+def main():
+    
+    #Scrape('piano/')
+    (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur) = ProcessMidis('piano/', 100)
+
+    print('Number of chords:'+ str(no_chords))
+    print('Number of durations:'+ str(no_dur))
+
+    model = create_lstm(input_chords, no_chords, input_dur, no_dur)
+    train(model, input_chords, input_dur, target_chords, target_dur)
+    
+    # Uncomment this to save a diagram of the model
+    #img_file = 'model.png'
+    #np_utils.plot_model(model, to_file=img_file, show_shapes=True)
 
 
 
-
-
-
-(input_chords, input_dur, target_chords, target_dur, no_chords, no_dur) = ProcessMidis('piano/', 100)
-
-model = create_lstm(input_chords, no_chords, input_dur, no_dur)
-
-# Uncomment this to save a diagram of the model
-#img_file = 'model.png'
-#np_utils.plot_model(model, to_file=img_file, show_shapes=True)
-
-print(input_chords.shape[0])
-print(input_chords.shape[1])
-print(input_chords.shape[2])
+if __name__ == '__main__':
+	#weights_name = 'weights-improvement-41-0.9199-bigger.hdf5'
+	main()
