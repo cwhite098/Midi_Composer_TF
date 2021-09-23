@@ -71,8 +71,9 @@ def ProcessMidis(dir, seq_len):
 
     # Adds the parsed songs to a list
     for song in song_list:
-        score = converter.parse(save_dir+song)
-        original_scores.append(score)
+        print(song)
+        midi = converter.parse(save_dir+song)
+        original_scores.append(midi)
 
     # Remove polyphonic music (multiple instruments)
     # This function checks for monophonic music
@@ -82,15 +83,21 @@ def ProcessMidis(dir, seq_len):
             length = len(instrument.partitionByInstrument(stream).parts)
         except:
             length = 0
+            print(str(stream) + 'is NOT monotonic')
         return length == 1
 
     # Loops through songs, checks they are monophonic then chordifies and adds to list
     original_scores_chordified = []
     for song in original_scores:
         if monophonic(song):
-            original_scores_chordified.append(song.chordify())
+            print(str(song)+'is monotonic')
+            song.chordify()
+            # flat the notes, not entirely sure what this does but it's necessary
+            original_scores_chordified.append(song.flat.notes)
 
     original_scores = original_scores_chordified
+
+    #print(original_scores)
 
     # Now we need to extract the notes, chords and durations from the songs
     original_chords = [[] for _ in original_scores] #empty list of lists
@@ -105,7 +112,7 @@ def ProcessMidis(dir, seq_len):
             # if note
             if isinstance(element, note.Note):
                 # add note
-                original_chords[i].append(element.pitch)
+                original_chords[i].append(str(element.pitch))
                 original_durations[i].append(element.duration.quarterLength)
             # if chord
             elif isinstance(element, chord.Chord):
@@ -114,6 +121,7 @@ def ProcessMidis(dir, seq_len):
                 original_durations[i].append(element.duration.quarterLength)
 
         print(str(i))
+
 
     # I am going to keep all the key signatures for now unlike tutorial
 
@@ -228,7 +236,7 @@ def create_lstm(input_chords, no_chords, input_dur, no_dur):
 
 def train(model, input_chords, input_dur, target_chords, target_dur):
 
-    filepath = "weights-improvement-{epoch:02d}-{loss:.4f}-bigger.hdf5"
+    filepath = "weights/weights-improvement-{epoch:02d}-{loss:.4f}-bigger.hdf5"
     checkpoint = ModelCheckpoint(
 		filepath,
 		monitor='loss',
