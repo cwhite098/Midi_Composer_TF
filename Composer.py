@@ -1,5 +1,3 @@
-
-
 from re import X
 from urllib.request import urlopen, urlretrieve
 from bs4 import BeautifulSoup
@@ -14,7 +12,7 @@ from tensorflow.keras.layers import BatchNormalization as BatchNorm
 from tensorflow.keras import Model
 from tensorflow.keras.callbacks import ModelCheckpoint, History
 from tensorflow.keras.optimizers import Adam
-from tensorflow.python.ops.gen_math_ops import xdivy_eager_fallback, xlog1py
+from tensorflow.python.ops.gen_math_ops import not_equal, not_equal_eager_fallback, xdivy_eager_fallback, xlog1py
 import tensorflow as tf
 
 
@@ -178,7 +176,7 @@ def ProcessMidis(dir, seq_len):
     print(target_dur.shape)
     print(input_dur.shape)
 
-    return (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur)
+    return (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur, int_to_chord, int_to_dur)
 
 
 def create_lstm(input_chords, no_chords, input_dur, no_dur):
@@ -278,7 +276,8 @@ def train(model, input_chords, input_dur, target_chords, target_dur, initial_epo
 		monitor='loss',
 		verbose=0,
 		save_best_only=True,
-		mode='min'
+		mode='min',
+        save_freq = 5
 	)
     history = History()
     callbacks_list = [checkpoint, history]
@@ -288,6 +287,61 @@ def train(model, input_chords, input_dur, target_chords, target_dur, initial_epo
             verbose=1, initial_epoch = initial_epoch)
 
 
+def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur):
+
+    prediction_output = []
+
+    for note_index in range(400):
+
+        chord_prediction_input = np.reshape(chord_pattern, (1, len(chord_pattern), 1))
+        predictedNote = chord_prediction_input[-1][-1][-1]
+
+        dur_prediction_input = np.reshape(dur_pattern, (1, len(dur_pattern), 1))
+    
+        prediction = model.predict([chord_prediction_input, dur_prediction_input])
+
+        # Use the sample function to add some extra randomness
+        prediction[0] = sample(prediction[0], 0.99)
+        prediction[1] = sample(prediction[1], 0.99)
+
+        chord_index = np.argmax(prediction[0])
+        chord_result = int_to_note[chord_index]
+
+        dur_index = np.argmax(prediction[1])
+        dur_result = int_to_dur[dur_index]
+
+        print("Next note: " + str(chord_result) + " - Duration: " + str(dur_result))
+		
+        prediction_output.append([chord_result, dur_result])
+
+        chord_pattern = np.append(chord_pattern, chord_index)
+        dur_pattern = np.append(dur_pattern, dur_index)
+
+        chord_pattern = chord_pattern[1:len(chord_pattern)]
+        dur_pattern = dur_pattern[1:len(dur_pattern)]
+    
+    return prediction_output
+
+
+def sample(preds, temperature):
+    preds = np.asarray(preds).astype('float64')
+    
+    # Adds a lil bit of randomness
+    preds = np.log(preds) / temperature
+    exp_preds = np.exp(preds)
+    preds = exp_preds / np.sum(exp_preds)
+
+    probas = np.random.multinomial(1, preds[0,:], 1)
+
+    return probas
+
+
+def generate_midi(chord_seq, dur_seq, int_to_chord, int_to_dur, midi_name):
+
+
+
+    return midi
+
 
 def main():
 
@@ -295,20 +349,29 @@ def main():
     tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
     #Scrape('piano/')
-    (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur) = ProcessMidis('piano/', 100)
+    (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur, int_to_chord, int_to_dur) = ProcessMidis('piano/', 100)
 
     print('Number of chords:'+ str(no_chords))
     print('Number of durations:'+ str(no_dur))
 
     model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur)
-    train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
-    
+    #train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
+
+    # Choose random start sequence
+    start_chords = np.random.randint(0, len(input_chords)-1)
+    start_dur = np.random.randint(0, len(input_dur) -1)
+
+    chord_pattern = input_chords[start_chords]
+    print(chord_pattern)
+    dur_pattern = input_dur[start_dur]
+
+    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur)
+    print(predicted_notes)
+
     # Uncomment this to save a diagram of the model
     #img_file = 'model.png'
     #np_utils.plot_model(model, to_file=img_file, show_shapes=True)
 
 
-
 if __name__ == '__main__':
-	#weights_name = 'weights-improvement-41-0.9199-bigger.hdf5'
 	main()
