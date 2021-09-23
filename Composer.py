@@ -3,7 +3,7 @@ from urllib.request import urlopen, urlretrieve
 from bs4 import BeautifulSoup
 import time
 import os
-from music21 import converter, pitch, interval, instrument, note, chord
+from music21 import converter, pitch, interval, instrument, note, chord, stream
 import numpy as np
 import tensorflow.keras.utils as np_utils
 from tensorflow.keras.models import Sequential, load_model
@@ -277,7 +277,6 @@ def train(model, input_chords, input_dur, target_chords, target_dur, initial_epo
 		verbose=0,
 		save_best_only=True,
 		mode='min',
-        save_freq = 5
 	)
     history = History()
     callbacks_list = [checkpoint, history]
@@ -301,8 +300,8 @@ def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur):
         prediction = model.predict([chord_prediction_input, dur_prediction_input])
 
         # Use the sample function to add some extra randomness
-        prediction[0] = sample(prediction[0], 0.99)
-        prediction[1] = sample(prediction[1], 0.99)
+        prediction[0] = sample(prediction[0], 0.01)
+        prediction[1] = sample(prediction[1], 0.01)
 
         chord_index = np.argmax(prediction[0])
         chord_result = int_to_note[chord_index]
@@ -336,11 +335,40 @@ def sample(preds, temperature):
     return probas
 
 
-def generate_midi(chord_seq, dur_seq, int_to_chord, int_to_dur, midi_name):
+def generate_midi(predicted_notes, midi_name):
 
+    offset = 0
+    output_notes = []
 
+    for pred_note in predicted_notes:
+        current_chord = pred_note[0]
+        current_dur = pred_note[1]
 
-    return midi
+        if('.' in current_chord) or current_chord.isdigit():
+            notes_in_chord = current_chord.split('.')
+            notes = []
+
+            for n in notes_in_chord:
+                new_note = note.Note(n)
+                new_note.storedInstrument = instrument.Piano()
+                notes.append(new_note)
+                print('chord:'+str(notes))
+            
+            new_chord = chord.Chord(notes)
+            new_chord.offset = offset
+            new_chord.quarterLength = current_dur
+            output_notes.append(new_chord)
+        
+        else:
+            new_note = note.Note(current_chord)
+            new_note.offset = offset
+            new_note.storedInstrument = instrument.Piano()
+            new_note.quarterLength = current_dur
+            output_notes.append(new_note)
+
+        offset += 0.5
+    midi_stream = stream.Stream(output_notes)
+    midi_stream.write('midi', fp=midi_name)
 
 
 def main():
@@ -366,7 +394,9 @@ def main():
     dur_pattern = input_dur[start_dur]
 
     predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur)
-    print(predicted_notes)
+    print(predicted_notes[0])
+
+    generate_midi(predicted_notes, 'test.mid')
 
     # Uncomment this to save a diagram of the model
     #img_file = 'model.png'
