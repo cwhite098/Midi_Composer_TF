@@ -8,13 +8,14 @@ import os
 from music21 import converter, pitch, interval, instrument, note, chord
 import numpy as np
 import tensorflow.keras.utils as np_utils
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import Dense, Dropout, Activation, Bidirectional, LSTM, concatenate, Input
 from tensorflow.keras.layers import BatchNormalization as BatchNorm
 from tensorflow.keras import Model
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, History
 from tensorflow.keras.optimizers import Adam
 from tensorflow.python.ops.gen_math_ops import xdivy_eager_fallback, xlog1py
+import tensorflow as tf
 
 
 def Scrape(dir):
@@ -230,11 +231,46 @@ def create_lstm(input_chords, no_chords, input_dur, no_dur):
 
     model.compile(loss='categorical_crossentropy', optimizer='adam')
 
-    #model.load_weights(weights_name)
-
     return model
 
-def train(model, input_chords, input_dur, target_chords, target_dur):
+def make_or_restore(checkpoint_dir, input_chords, no_chords, input_dur, no_dur):
+    ## Function that will restore the model to the most recent checkpoint or make a fresh one
+
+    checkpoints = [checkpoint_dir + "/" + name for name in os.listdir(checkpoint_dir)]
+    if checkpoints:
+        latest_checkpoint = max(checkpoints, key=os.path.getctime)
+        print("Restoring from", latest_checkpoint)
+
+        initial_epoch = find_initial_epoch(str(latest_checkpoint))
+
+        return load_model(latest_checkpoint), initial_epoch
+    
+    print("Creating a new model")
+    initial_epoch = 0
+    return create_lstm(input_chords, no_chords, input_dur, no_dur), initial_epoch
+
+
+def find_initial_epoch(checkpoint_str):
+    ## Function that finds the initial epoch from the saved model name
+
+    for i in range(2):
+        refs = checkpoint_str.find('-')
+        checkpoint_str = checkpoint_str[refs+1:]
+
+    refs = checkpoint_str.find('-')
+    checkpoint_str = checkpoint_str[:refs]
+    checkpoint_str = checkpoint_str.lstrip('0')
+
+    initial_epoch = int(checkpoint_str)
+    
+    return initial_epoch
+
+
+def train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch):
+
+    checkpoint_dir = "./weights"
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
 
     filepath = "weights/weights-improvement-{epoch:02d}-{loss:.4f}-bigger.hdf5"
     checkpoint = ModelCheckpoint(
@@ -244,21 +280,28 @@ def train(model, input_chords, input_dur, target_chords, target_dur):
 		save_best_only=True,
 		mode='min'
 	)
-    callbacks_list = [checkpoint]
+    history = History()
+    callbacks_list = [checkpoint, history]
 
-    model.fit([input_chords, input_dur],[target_chords, target_dur], epochs=1000, batch_size=64, callbacks=callbacks_list, verbose=1)
+    model.fit([input_chords, input_dur],[target_chords, target_dur], 
+            epochs=1000, batch_size=64, callbacks=callbacks_list, 
+            verbose=1, initial_epoch = initial_epoch)
+
 
 
 def main():
-    
+
+    physical_devices = tf.config.list_physical_devices('GPU')
+    tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
+
     #Scrape('piano/')
     (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur) = ProcessMidis('piano/', 100)
 
     print('Number of chords:'+ str(no_chords))
     print('Number of durations:'+ str(no_dur))
 
-    model = create_lstm(input_chords, no_chords, input_dur, no_dur)
-    train(model, input_chords, input_dur, target_chords, target_dur)
+    model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur)
+    train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
     
     # Uncomment this to save a diagram of the model
     #img_file = 'model.png'
