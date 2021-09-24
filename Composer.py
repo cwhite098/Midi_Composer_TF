@@ -3,7 +3,7 @@ from urllib.request import urlopen, urlretrieve
 from bs4 import BeautifulSoup
 import time
 import os
-from music21 import converter, pitch, interval, instrument, note, chord, stream
+from music21 import converter, pitch, interval, instrument, note, chord, stream, key
 import numpy as np
 import tensorflow.keras.utils as np_utils
 from tensorflow.keras.models import Sequential, load_model
@@ -72,7 +72,9 @@ def ProcessMidis(dir, seq_len):
     for song in song_list:
         print(song)
         midi = converter.parse(save_dir+song)
-        original_scores.append(midi)
+        key = midi.analyze('key')
+        if str(key) == 'C major' or str(key) == 'c minor':
+            original_scores.append(midi)
 
     # Remove polyphonic music (multiple instruments)
     # This function checks for monophonic music
@@ -300,8 +302,8 @@ def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur):
         prediction = model.predict([chord_prediction_input, dur_prediction_input])
 
         # Use the sample function to add some extra randomness
-        prediction[0] = sample(prediction[0], 0.01)
-        prediction[1] = sample(prediction[1], 0.01)
+        prediction[0] = sample(prediction[0], 0.4)
+        prediction[1] = sample(prediction[1], 0.4)
 
         chord_index = np.argmax(prediction[0])
         chord_result = int_to_note[chord_index]
@@ -357,6 +359,7 @@ def generate_midi(predicted_notes, midi_name):
             new_chord = chord.Chord(notes)
             new_chord.offset = offset
             new_chord.quarterLength = current_dur
+            new_chord.volume.velocityScalar =0.1
             output_notes.append(new_chord)
         
         else:
@@ -364,6 +367,7 @@ def generate_midi(predicted_notes, midi_name):
             new_note.offset = offset
             new_note.storedInstrument = instrument.Piano()
             new_note.quarterLength = current_dur
+            new_note.volume.velocityScalar =0.1
             output_notes.append(new_note)
 
         offset += 0.5
@@ -383,7 +387,7 @@ def main():
     print('Number of durations:'+ str(no_dur))
 
     model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur)
-    #train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
+    train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
 
     # Choose random start sequence
     start_chords = np.random.randint(0, len(input_chords)-1)
