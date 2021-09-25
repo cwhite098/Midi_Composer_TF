@@ -14,6 +14,19 @@ from tensorflow.keras.callbacks import ModelCheckpoint, History
 from tensorflow.keras.optimizers import Adam
 from tensorflow.python.ops.gen_math_ops import not_equal, not_equal_eager_fallback, xdivy_eager_fallback, xlog1py
 import tensorflow as tf
+import pickle
+
+# Functions to save an load lists from pickle files
+def save_list(list_to_save, folder_name, file_name):
+    if not os.path.isdir(folder_name):
+        os.mkdir(folder_name)
+        print('Making Directory:' + str(folder_name))
+    with open(folder_name + '/' + file_name, 'wb') as fp:
+        pickle.dump(list_to_save, fp)
+
+def load_list(folder_name, file_name):
+    with open(folder_name + '/' + file_name, 'rb') as fp:
+        return pickle.load(fp)
 
 
 def Scrape(dir):
@@ -177,6 +190,16 @@ def ProcessMidis(dir, seq_len):
     print(target_chords.shape)
     print(target_dur.shape)
     print(input_dur.shape)
+
+    # Save all the important data structures so this whole func doesnt have to run every time
+    print('Saving Data...')
+    save_list(input_chords, 'Processed_Data', 'input_chords')
+    save_list(input_dur, 'Processed_Data', 'input_dur')
+    save_list(target_chords, 'Processed_Data', 'target_chords')
+    save_list(target_dur, 'Processed_Data', 'target_dur')
+    save_list(int_to_chord, 'Processed_Data', 'int_to_chord')
+    save_list(int_to_dur, 'Processed_Data', 'int_to_dur')
+    print('Saving Complete...')
 
     return (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur, int_to_chord, int_to_dur)
 
@@ -359,7 +382,7 @@ def generate_midi(predicted_notes, midi_name):
             new_chord = chord.Chord(notes)
             new_chord.offset = offset
             new_chord.quarterLength = current_dur
-            new_chord.volume.velocityScalar =0.1
+            new_chord.volume.velocityScalar =0.5
             output_notes.append(new_chord)
         
         else:
@@ -367,7 +390,7 @@ def generate_midi(predicted_notes, midi_name):
             new_note.offset = offset
             new_note.storedInstrument = instrument.Piano()
             new_note.quarterLength = current_dur
-            new_note.volume.velocityScalar =0.1
+            new_note.volume.velocityScalar =0.5
             output_notes.append(new_note)
 
         offset += 0.5
@@ -381,13 +404,26 @@ def main():
     tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
     #Scrape('piano/')
-    (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur, int_to_chord, int_to_dur) = ProcessMidis('piano/', 100)
+    #ProcessMidis('piano/', 100)
+
+    # Load the data, comment out ProcessMidis once the Processed_Data folder is full
+    print('Loading Data...')
+    input_chords = load_list('Processed_Data', 'input_chords')
+    input_dur = load_list('Processed_Data', 'input_dur')
+    target_chords = load_list('Processed_Data', 'target_chords')
+    target_dur = load_list('Processed_Data', 'target_dur')
+    int_to_chord = load_list('Processed_Data', 'int_to_chord')
+    int_to_dur = load_list('Processed_Data', 'int_to_dur')
+    print('... Loading Complete')
+
+    no_chords = target_chords.shape[1]
+    no_dur = target_dur.shape[1]
 
     print('Number of chords:'+ str(no_chords))
     print('Number of durations:'+ str(no_dur))
 
     model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur)
-    train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
+    #train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
 
     # Choose random start sequence
     start_chords = np.random.randint(0, len(input_chords)-1)
