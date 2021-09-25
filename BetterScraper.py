@@ -13,6 +13,10 @@ def Scrape(dir):
     # Directory to save the Midi files
     save_dir = dir
 
+    if not os.path.isdir(save_dir):
+        os.mkdir(save_dir)
+        print('Making Directory:' + str(save_dir))
+
     # Url is plsit into two so we can go through the pages of the search results
     url = 'https://bushgrafts.com/midi/'
 
@@ -47,10 +51,13 @@ def Scrape(dir):
     time.sleep(10.0)
 
 
-def extract_piano(midi_file, name):
+def extract_piano(midi_file, name, location):
 
     midi = converter.parse(midi_file)
     parts = midi.parts.stream()
+
+    
+
     for part in parts:
         print(part.partName)
 
@@ -64,12 +71,19 @@ def extract_piano(midi_file, name):
 
 
 def main():
-    #Scrape('piano2/')
+
+    Scrape('piano2/')
 
     song_list = os.listdir('piano2/')
-    for song in song_list:
+    
+    location = 'piano_only/'
 
-        extract_piano('piano2/'+str(song),song)
+    if not os.path.isdir(location):
+        os.mkdir(location)
+        print('Making Directory:' + str(location))
+
+    for song in song_list:
+        extract_piano('piano2/'+str(song),song, location)
 
 if __name__ == '__main__':
     main()
