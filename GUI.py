@@ -6,6 +6,19 @@ import scipy.ndimage
 from mido import MidiFile
 
 
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 50, 50)
+YELLOW = (255, 255, 0)
+GREEN = (0, 255, 50)
+BLUE = (50, 50, 255)
+GREY = (200, 200, 200)
+ORANGE = (200, 100, 50)
+CYAN = (0, 255, 255)
+MAGENTA = (255, 0, 255)
+TRANS = (1, 1, 1)
+
+
 class button():
     # https://www.youtube.com/watch?v=4_9twnEduFA
     def __init__(self, color, x,y,width,height, text=''):
@@ -36,6 +49,54 @@ class button():
             
         return False
 
+
+class Slider():
+    def __init__(self, name, val, max, min, pos):
+        font = pygame.font.SysFont("comicsans", 12)
+        self.val = val
+        self.max = max
+        self.min = min
+        self.x = pos[0]
+        self.y = pos[1]
+        self.surf = pygame.surface.Surface((100,50))
+        self.hit = False
+        self.txt_surf = font.render(name, 1, (0,0,0))
+        self.txt_rect = self.txt_surf.get_rect(center=(50,15))
+
+        #Background surface that doesnt move
+        self.surf.fill((100,100,100))
+        pygame.draw.rect(self.surf, GREY, [0,0,100,50], 3)
+        pygame.draw.rect(self.surf, ORANGE, [10, 10, 80, 10], 0)
+        pygame.draw.rect(self.surf, WHITE, [10, 30, 80, 5], 0)
+
+        self.surf.blit(self.txt_surf, self.txt_rect)
+
+        # Surface for button that moves
+        self.button_surf = pygame.surface.Surface((20, 20))
+        self.button_surf.fill(TRANS)
+        self.button_surf.set_colorkey(TRANS)
+        pygame.draw.circle(self.button_surf, BLACK, (10, 10), 6, 0)
+        pygame.draw.circle(self.button_surf, ORANGE, (10, 10), 4, 0)
+
+    def draw(self, screen):
+        surf = self.surf.copy()
+
+        pos = (10+int((self.val-self.min)/(self.max-self.min)*80), 33)
+        self.button_rect = self.button_surf.get_rect(center=pos)
+        surf.blit(self.button_surf, self.button_rect)
+        self.button_rect.move_ip(self.x, self.y)  # move of button box to correct screen position
+
+        screen.blit(surf, (self.x, self.y))
+
+    def move(self):
+        if self.hit == True:
+            self.val = (pygame.mouse.get_pos()[0] - self.x - 10) / 80 * (self.max - self.min) + self.min
+            pygame.mixer.music.set_volume(self.val)
+            print(self.val)
+            if self.val < self.min:
+                self.val = self.min
+            if self.val > self.max:
+                self.val = self.max
 
 
 
@@ -82,7 +143,7 @@ def run_GUI(piano_roll, size_x, size_y):
 
     WHITE = [255,255,255]
 
-    pygame.mixer.music.load("test.mid")
+    music = pygame.mixer.music.load("test.mid")
     
     mid = MidiFile('test.mid')
     max_time = mid.length
@@ -99,8 +160,12 @@ def run_GUI(piano_roll, size_x, size_y):
     running = True
     y_coord = 0
 
-    play_button = button((100,100,100), 10, 450, 100, 50,'Play')
-    pause_button = button((100,100,100), 500, 450, 100, 50,'Pause')
+    play_button = button((100,100,100), 20, 300, 100, 50,'Play')
+    pause_button = button((100,100,100), 220, 300, 100, 50,'Pause')
+    rewind_button = button((100,100,100), 420, 300, 100, 50,'Rewind')
+
+    vol_slider = Slider('Volume', 1, 1, 0, (20, 400))
+    slides = [vol_slider]
     mouse_pos = pygame.mouse.get_pos()
 
     while running:
@@ -115,7 +180,19 @@ def run_GUI(piano_roll, size_x, size_y):
                 if pause_button.isOver(mouse_pos):
                     pygame.mixer.music.stop()
                     roll_speed = 0
-        
+                if rewind_button.isOver(mouse_pos):
+                    pygame.mixer.music.stop()
+                    pygame.mixer.music.rewind()
+                    roll_speed = 0
+                    y_coord = 0
+                for s in slides:
+                    if s.button_rect.collidepoint(mouse_pos):
+                        s.hit = True
+
+            if event.type == pygame.MOUSEBUTTONUP:
+                for s in slides:
+                    s.hit = False
+   
             if event.type == pygame.MOUSEMOTION:
                 if play_button.isOver(mouse_pos):
                     play_button.color = (150,150,150)
@@ -125,16 +202,25 @@ def run_GUI(piano_roll, size_x, size_y):
                     pause_button.color = (150,150,150)
                 else:
                     pause_button.color = (100,100,100)
+                if rewind_button.isOver(mouse_pos):
+                    rewind_button.color = (150,150,150)
+                else:
+                    rewind_button.color = (100,100,100)
 
-        display.blit(roll_display,((500-size_x)/2 ,20 ))
-        roll_display.blit(surf, (0,y_coord-size_y+200))
+        display.blit(roll_display,((540-size_x)/2 ,20 ))
+        roll_display.blit(surf, ((540-size_x)/2,y_coord-size_y+200))
         y_coord += roll_speed
-        print(y_coord)
 
         mouse_pos = pygame.mouse.get_pos()
 
         play_button.draw(display)
         pause_button.draw(display)
+        rewind_button.draw(display)
+        
+        for s in slides:
+            s.move()
+            s.draw(display)
+
         pygame.display.update()
         clock.tick(FPS)
 
