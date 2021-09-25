@@ -181,15 +181,12 @@ def ProcessMidis(dir, seq_len):
     input_chords = input_chords / float(len(unique_chords))
     input_dur = input_dur / float(len(unique_dur))
     # Make target notes categorical
-    target_chords = np_utils.to_categorical(target_chords)
+    
     target_dur = np_utils.to_categorical(target_dur)
+    target_chords = np_utils.to_categorical(target_chords)
 
     no_chords = target_chords.shape[1]
     no_dur = target_dur.shape[1]
-
-    print(target_chords.shape)
-    print(target_dur.shape)
-    print(input_dur.shape)
 
     # Save all the important data structures so this whole func doesnt have to run every time
     print('Saving Data...')
@@ -377,7 +374,7 @@ def generate_midi(predicted_notes, midi_name):
                 new_note = note.Note(n)
                 new_note.storedInstrument = instrument.Piano()
                 notes.append(new_note)
-                print('chord:'+str(notes))
+                #print('chord:'+str(notes))
             
             new_chord = chord.Chord(notes)
             new_chord.offset = offset
@@ -404,7 +401,7 @@ def main():
     tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
     #Scrape('piano/')
-    #ProcessMidis('piano/', 100)
+    ProcessMidis('piano/', 100)
 
     # Load the data, comment out ProcessMidis once the Processed_Data folder is full
     print('Loading Data...')
@@ -415,6 +412,9 @@ def main():
     int_to_chord = load_list('Processed_Data', 'int_to_chord')
     int_to_dur = load_list('Processed_Data', 'int_to_dur')
     print('... Loading Complete')
+
+    print(target_chords.shape)
+    print(target_dur.shape)
 
     no_chords = target_chords.shape[1]
     no_dur = target_dur.shape[1]
@@ -430,11 +430,9 @@ def main():
     start_dur = np.random.randint(0, len(input_dur) -1)
 
     chord_pattern = input_chords[start_chords]
-    print(chord_pattern)
     dur_pattern = input_dur[start_dur]
 
     predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur)
-    print(predicted_notes[0])
 
     generate_midi(predicted_notes, 'test.mid')
 
