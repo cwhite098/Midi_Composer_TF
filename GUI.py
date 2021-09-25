@@ -51,6 +51,9 @@ class button():
 
 
 class Slider():
+
+# Use https://github.com/HackerPoet/FaceEditor/blob/master/face_edit.py instead for sliders
+
     def __init__(self, name, val, max, min, pos):
         font = pygame.font.SysFont("comicsans", 12)
         self.val = val
@@ -110,6 +113,7 @@ def process_midi(midi_file):
     piano_roll = crop_array(piano_roll, 5)
     piano_roll = scipy.ndimage.zoom(piano_roll, 6, order=0)
     piano_roll = np.rot90(piano_roll, 2)
+    pinao_roll = np.fliplr(piano_roll)
 
     return piano_roll
 
