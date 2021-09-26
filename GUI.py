@@ -113,7 +113,7 @@ def process_midi(midi_file):
     piano_roll = crop_array(piano_roll, 5)
     piano_roll = scipy.ndimage.zoom(piano_roll, 6, order=0)
     piano_roll = np.rot90(piano_roll, 2)
-    pinao_roll = np.fliplr(piano_roll)
+    piano_roll = np.flipud(piano_roll)
 
     return piano_roll
 
