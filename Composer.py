@@ -395,15 +395,8 @@ def generate_midi(predicted_notes, midi_name):
     midi_stream.write('midi', fp=midi_name)
 
 
-def main():
+def prep_data():
 
-    physical_devices = tf.config.list_physical_devices('GPU')
-    tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
-
-    #Scrape('piano/')
-    ProcessMidis('piano/', 100)
-
-    # Load the data, comment out ProcessMidis once the Processed_Data folder is full
     print('Loading Data...')
     input_chords = load_list('Processed_Data', 'input_chords')
     input_dur = load_list('Processed_Data', 'input_dur')
@@ -421,6 +414,20 @@ def main():
 
     print('Number of chords:'+ str(no_chords))
     print('Number of durations:'+ str(no_dur))
+
+    return input_chords, input_dur, target_chords, target_dur, int_to_chord, int_to_dur, no_chords, no_dur
+
+def main():
+
+    physical_devices = tf.config.list_physical_devices('GPU')
+    tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
+
+    #Scrape('piano/')
+    #ProcessMidis('piano/', 100)
+
+    # Load the data, comment out ProcessMidis once the Processed_Data folder is full
+    input_chords, input_dur, target_chords, target_dur, int_to_chord, int_to_dur, no_chords, no_dur = prep_data()
+    
 
     model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur)
     #train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
