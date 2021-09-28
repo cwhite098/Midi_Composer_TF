@@ -266,16 +266,11 @@ def make_or_restore(checkpoint_dir, input_chords, no_chords, input_dur, no_dur):
     checkpoints = [checkpoint_dir + "/" + name for name in os.listdir(checkpoint_dir)]
     if checkpoints:
 
-        idx = 0
         epoch_list = []
         for c in checkpoints:
             epoch_list.append(find_initial_epoch(str(c)))
-            idx += 1
-            print(idx)
-        print(epoch_list)
-        print(max(epoch_list))
+
         index = epoch_list.index(max(epoch_list))
-        print(index)
         latest_checkpoint = checkpoints[index]
         print("Restoring from", latest_checkpoint)
 
