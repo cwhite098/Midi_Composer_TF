@@ -1,20 +1,27 @@
+import os
+import pickle
+import time
 from re import X
 from urllib.request import urlopen, urlretrieve
-from bs4 import BeautifulSoup
-import time
-import os
-from music21 import converter, pitch, interval, instrument, note, chord, stream, key
+
 import numpy as np
-import tensorflow.keras.utils as np_utils
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, Dropout, Activation, Bidirectional, LSTM, concatenate, Input
-from tensorflow.keras.layers import BatchNormalization as BatchNorm
-from tensorflow.keras import Model
-from tensorflow.keras.callbacks import ModelCheckpoint, History
-from tensorflow.keras.optimizers import Adam
-from tensorflow.python.ops.gen_math_ops import not_equal, not_equal_eager_fallback, xdivy_eager_fallback, xlog1py
 import tensorflow as tf
-import pickle
+import tensorflow.keras.utils as np_utils
+from bs4 import BeautifulSoup
+from music21 import (chord, converter, instrument, interval, key, note, pitch,
+                     stream)
+from tensorflow.keras import Model
+from tensorflow.keras.callbacks import History, ModelCheckpoint
+from tensorflow.keras.layers import LSTM, Activation
+from tensorflow.keras.layers import BatchNormalization as BatchNorm
+from tensorflow.keras.layers import (Bidirectional, Dense, Dropout, Input,
+                                     concatenate)
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.python.ops.gen_math_ops import (not_equal,
+                                                not_equal_eager_fallback,
+                                                xdivy_eager_fallback, xlog1py)
+
 
 # Functions to save an load lists from pickle files
 def save_list(list_to_save, folder_name, file_name):
