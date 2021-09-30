@@ -2,11 +2,12 @@ import pygame
 import numpy as np
 import pretty_midi as pm
 import cv2
+from pygame import mouse
 import scipy.ndimage
 from mido import MidiFile
 import pickle
 from Composer import load_list, prep_data, make_or_restore, generate_seq, generate_midi
-
+import shutil, os
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -148,13 +149,23 @@ def run_GUI(piano_roll, size_x, size_y):
                     pygame.mixer.music.rewind()
                     roll_speed = 0
                     y_coord = 0
+                if save_button.isOver(mouse_pos):
+                    if not os.path.isdir('Saved_Songs'):
+                        os.mkdir('Saved_Songs')
+                        print('Making Directory: Saved_Songs')
+                    song_name = input('Enter song name: ')
+                    shutil.copy('test.mid', 'Saved_Songs/'+str(song_name)+'.mid')
+
                 if gen_button.isOver(mouse_pos):
+                    pygame.mixer.music.stop()
+
                     start_chords = np.random.randint(0, len(input_chords)-1)
                     start_dur = np.random.randint(0, len(input_dur) -1)
 
                     chord_pattern = input_chords[start_chords]
                     dur_pattern = input_dur[start_dur]
-
+                    
+                    print('generating notes...')
                     predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur)
 
                     generate_midi(predicted_notes, 'test.mid')
@@ -171,10 +182,9 @@ def run_GUI(piano_roll, size_x, size_y):
                     size_y = piano_roll.shape[1]
                     roll_display = pygame.Surface((size_x, 260))
                     y_coord = 0
-                    pygame.mixer.music.stop()
+                    
                     roll_speed = 0
               
-   
             if event.type == pygame.MOUSEMOTION:
                 for b in buttons:
                     if b.isOver(mouse_pos):
