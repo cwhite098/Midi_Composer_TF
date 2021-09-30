@@ -267,14 +267,16 @@ def make_or_restore(checkpoint_dir, input_chords, no_chords, input_dur, no_dur):
     if checkpoints:
 
         epoch_list = []
+        # Finds the epoch number from the string of its name
         for c in checkpoints:
             epoch_list.append(find_initial_epoch(str(c)))
 
+        #finds the index of the largest epoch number and loads it
         index = epoch_list.index(max(epoch_list))
         latest_checkpoint = checkpoints[index]
         print("Restoring from", latest_checkpoint)
 
-        initial_epoch = find_initial_epoch(str(latest_checkpoint))
+        initial_epoch = max(epoch_list)
 
         return load_model(latest_checkpoint), initial_epoch
     
@@ -285,12 +287,16 @@ def make_or_restore(checkpoint_dir, input_chords, no_chords, input_dur, no_dur):
 
 def find_initial_epoch(checkpoint_str):
     ## Function that finds the initial epoch from the saved model name
-
+    
+    # This loop finds the second '-' in the str
     for i in range(2):
         refs = checkpoint_str.find('-')
+        # the start of the epoch number is the next char after
         checkpoint_str = checkpoint_str[refs+1:]
 
+    # then find the red for the following '-' after the epoch number
     refs = checkpoint_str.find('-')
+    # strip away the rest of the string
     checkpoint_str = checkpoint_str[:refs]
     checkpoint_str = checkpoint_str.lstrip('0')
 
