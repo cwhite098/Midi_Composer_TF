@@ -327,7 +327,7 @@ def train(model, input_chords, input_dur, target_chords, target_dur, initial_epo
             verbose=1, initial_epoch = initial_epoch)
 
 
-def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur):
+def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur, temp):
 
     prediction_output = []
 
@@ -341,8 +341,8 @@ def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur):
         prediction = model.predict([chord_prediction_input, dur_prediction_input])
 
         # Use the sample function to add some extra randomness
-        prediction[0] = sample(prediction[0], 0.4)
-        prediction[1] = sample(prediction[1], 0.4)
+        prediction[0] = sample(prediction[0], temp)
+        prediction[1] = sample(prediction[1], temp)
 
         chord_index = np.argmax(prediction[0])
         chord_result = int_to_note[chord_index]
@@ -458,7 +458,7 @@ def main():
     chord_pattern = input_chords[start_chords]
     dur_pattern = input_dur[start_dur]
 
-    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur)
+    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur, 0.4)
 
     generate_midi(predicted_notes, 'test.mid')
 

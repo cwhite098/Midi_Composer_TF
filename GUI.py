@@ -135,10 +135,13 @@ def run_GUI(piano_roll, size_x, size_y):
     vol = 50
     vol_up = button((100,100,100), 45, 450-43, 50, 43, '', 'utriangle')
     vol_down = button((100,100,100), 45, 500, 50, 43, '', 'dtriangle')
+    temp = 50
+    temp_up = button((100,100,100), 445, 450-43, 50, 43, '', 'utriangle')
+    temp_down = button((100,100,100), 445, 500, 50, 43, '', 'dtriangle')
     font = pygame.font.SysFont('comicsans', 24)
     
 
-    buttons = [play_button, pause_button, rewind_button, gen_button, save_button, vol_up, vol_down]
+    buttons = [play_button, pause_button, rewind_button, gen_button, save_button, vol_up, vol_down, temp_up, temp_down]
 
     mouse_pos = pygame.mouse.get_pos()
 
@@ -168,7 +171,16 @@ def run_GUI(piano_roll, size_x, size_y):
                     vol -= 10
                     if vol<0:
                         vol=0
-                    pygame.mixer.music.set_volume(vol/100)
+                if temp_up.isOver(mouse_pos):
+                    temp += 10
+                    if temp>100:
+                        temp=100
+
+                if temp_down.isOver(mouse_pos):
+                    temp -= 10
+                    if temp<0:
+                        temp=0
+
                 if save_button.isOver(mouse_pos):
                     if not os.path.isdir('Saved_Songs'):
                         os.mkdir('Saved_Songs')
@@ -186,7 +198,7 @@ def run_GUI(piano_roll, size_x, size_y):
                     dur_pattern = input_dur[start_dur]
                     
                     print('generating notes...')
-                    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur)
+                    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur, temp/100)
 
                     generate_midi(predicted_notes, 'test.mid')
 
@@ -225,6 +237,8 @@ def run_GUI(piano_roll, size_x, size_y):
             b.draw(display)
         vol_text = font.render('Vol: '+str(int(vol))+'%', 1, (0,0,0))
         display.blit(vol_text, (40 , 470))
+        temp_text = font.render('Temp: '+str(int(temp))+'%', 1, (0,0,0))
+        display.blit(temp_text, (435 , 470))
 
         pygame.display.flip()
         clock.tick(FPS)
