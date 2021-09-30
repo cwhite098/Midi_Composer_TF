@@ -132,9 +132,11 @@ def run_GUI(piano_roll, size_x, size_y):
     gen_button = button((100,100,100), 220, 450, 100, 50, 'Generate Song')
     save_button = button((100,100,100), 220, 600, 100, 50, 'Save Song')
 
-    vol = 0.5
+    vol = 50
     vol_up = button((100,100,100), 45, 450-43, 50, 43, '', 'utriangle')
     vol_down = button((100,100,100), 45, 500, 50, 43, '', 'dtriangle')
+    font = pygame.font.SysFont('comicsans', 24)
+    
 
     buttons = [play_button, pause_button, rewind_button, gen_button, save_button, vol_up, vol_down]
 
@@ -158,15 +160,15 @@ def run_GUI(piano_roll, size_x, size_y):
                     roll_speed = 0
                     y_coord = 0       
                 if vol_up.isOver(mouse_pos):
-                    vol += 0.1
-                    if vol>1:
-                        vol=1
-                    pygame.mixer.music.set_volume(vol)
+                    vol += 10
+                    if vol>100:
+                        vol=100
+                    pygame.mixer.music.set_volume(vol/100)
                 if vol_down.isOver(mouse_pos):
-                    vol -= 0.1
+                    vol -= 10
                     if vol<0:
                         vol=0
-                    pygame.mixer.music.set_volume(vol)
+                    pygame.mixer.music.set_volume(vol/100)
                 if save_button.isOver(mouse_pos):
                     if not os.path.isdir('Saved_Songs'):
                         os.mkdir('Saved_Songs')
@@ -209,7 +211,9 @@ def run_GUI(piano_roll, size_x, size_y):
                         b.color = (150,150,150)
                     else:
                         b.color = (100,100,100)
-        
+
+
+        display.fill(WHITE)
 
         display.blit(roll_display,((540-size_x)/2 ,20 ))
         roll_display.blit(surf, ((540-size_x)/2,y_coord-size_y+260))
@@ -219,14 +223,13 @@ def run_GUI(piano_roll, size_x, size_y):
 
         for b in buttons:
             b.draw(display)
+        vol_text = font.render('Vol: '+str(int(vol))+'%', 1, (0,0,0))
+        display.blit(vol_text, (40 , 470))
 
-        pygame.display.update()
+        pygame.display.flip()
         clock.tick(FPS)
 
     pygame.quit()
-
-
-
 
 def main():
 
