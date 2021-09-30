@@ -24,20 +24,25 @@ TRANS = (1, 1, 1)
 
 class button():
     # https://www.youtube.com/watch?v=4_9twnEduFA
-    def __init__(self, color, x,y,width,height, text=''):
+    def __init__(self, color, x, y, width, height, text='', shape='square'):
         self.color = color
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.text = text
+        self.shape = shape
 
     def draw(self,win,outline=None):
         #Call this method to draw the button on the screen
         if outline:
             pygame.draw.rect(win, outline, (self.x-2,self.y-2,self.width+4,self.height+4),0)
-            
-        pygame.draw.rect(win, self.color, (self.x,self.y,self.width,self.height),0)
+        if self.shape == 'square':
+            pygame.draw.rect(win, self.color, (self.x,self.y,self.width,self.height),0)
+        if self.shape == 'dtriangle':
+            pygame.draw.polygon(win, self.color, [(self.x, self.y), (self.x+self.width, self.y), (self.x+(self.width/2), self.y+self.height)] )
+        if self.shape == 'utriangle':
+            pygame.draw.polygon(win, self.color, [(self.x, self.y+self.height), (self.x+self.width, self.y+self.height), (self.x+(self.width/2), self.y)] )
         
         if self.text != '':
             font = pygame.font.SysFont('comicsans', 20)
@@ -49,7 +54,6 @@ class button():
         if pos[0] > self.x and pos[0] < self.x + self.width:
             if pos[1] > self.y and pos[1] < self.y + self.height:
                 return True
-            
         return False
 
 
@@ -125,10 +129,14 @@ def run_GUI(piano_roll, size_x, size_y):
     pause_button = button((100,100,100), 220, 300, 100, 50,'Pause')
     rewind_button = button((100,100,100), 420, 300, 100, 50,'Rewind')
 
-    gen_button = button((100,100,100), 20, 450, 100, 50, 'Generate Song')
-    save_button = button((100,100,100), 220, 450, 100, 50, 'Save Song')
+    gen_button = button((100,100,100), 220, 450, 100, 50, 'Generate Song')
+    save_button = button((100,100,100), 220, 600, 100, 50, 'Save Song')
 
-    buttons = [play_button, pause_button, rewind_button, gen_button, save_button]
+    vol = 0.5
+    vol_up = button((100,100,100), 45, 450-43, 50, 43, '', 'utriangle')
+    vol_down = button((100,100,100), 45, 500, 50, 43, '', 'dtriangle')
+
+    buttons = [play_button, pause_button, rewind_button, gen_button, save_button, vol_up, vol_down]
 
     mouse_pos = pygame.mouse.get_pos()
 
@@ -148,7 +156,17 @@ def run_GUI(piano_roll, size_x, size_y):
                     pygame.mixer.music.stop()
                     pygame.mixer.music.rewind()
                     roll_speed = 0
-                    y_coord = 0
+                    y_coord = 0       
+                if vol_up.isOver(mouse_pos):
+                    vol += 0.1
+                    if vol>1:
+                        vol=1
+                    pygame.mixer.music.set_volume(vol)
+                if vol_down.isOver(mouse_pos):
+                    vol -= 0.1
+                    if vol<0:
+                        vol=0
+                    pygame.mixer.music.set_volume(vol)
                 if save_button.isOver(mouse_pos):
                     if not os.path.isdir('Saved_Songs'):
                         os.mkdir('Saved_Songs')
@@ -201,7 +219,6 @@ def run_GUI(piano_roll, size_x, size_y):
 
         for b in buttons:
             b.draw(display)
-
 
         pygame.display.update()
         clock.tick(FPS)
