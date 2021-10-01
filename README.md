@@ -22,4 +22,4 @@ The temperature parameter controls how randomly the program selects the next not
 ![GUI](https://github.com/cwhite098/Midi_Composer_TF/blob/main/gui.png)
 
 ## Improvements
-I hope to add, in the future, support for generating multi-instrument tracks and support for varying note velocity.
+I hope to add, in the future, support for generating multi-instrument tracks and support for varying note velocity. I also want to add the ability to select which training epoch the neural network is from in order to see how the output changes as the amount of training increases.
