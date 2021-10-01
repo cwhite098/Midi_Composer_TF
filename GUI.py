@@ -8,6 +8,8 @@ from mido import MidiFile
 import pickle
 from Composer import load_list, prep_data, make_or_restore, generate_seq, generate_midi
 import shutil, os
+from tkinter import *
+from tkinter import ttk
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -56,6 +58,23 @@ class button():
                 return True
         return False
 
+
+class PopUp(Tk):
+    def __init__(self):
+        Tk.__init__(self)
+        self.entry = Entry(self)
+        self.entry.grid(row=0, column=0,padx=20, pady=10)
+        self.save_button = Button(self, text='Save Song', command=self.save)
+        self.save_button.grid(row=2, column=0, padx=20, pady=10)
+        #self.entry.pack()
+        #self.save_button.pack()
+
+        self.eval('tk::PlaceWindow . center')
+        
+    def save(self):
+        song_name = self.entry.get()
+        shutil.copy('test.mid', 'Saved_Songs/'+str(song_name)+'.mid')
+        self.destroy()
 
 def process_midi(midi_file):
 
@@ -171,6 +190,7 @@ def run_GUI(piano_roll, size_x, size_y):
                     vol -= 10
                     if vol<0:
                         vol=0
+                    pygame.mixer.music.set_volume(vol/100)
                 if temp_up.isOver(mouse_pos):
                     temp += 10
                     if temp>100:
@@ -182,14 +202,18 @@ def run_GUI(piano_roll, size_x, size_y):
                         temp=0
 
                 if save_button.isOver(mouse_pos):
+                    popup = PopUp()
                     if not os.path.isdir('Saved_Songs'):
                         os.mkdir('Saved_Songs')
                         print('Making Directory: Saved_Songs')
-                    song_name = input('Enter song name: ')
-                    shutil.copy('test.mid', 'Saved_Songs/'+str(song_name)+'.mid')
+                    popup.mainloop()
 
                 if gen_button.isOver(mouse_pos):
                     pygame.mixer.music.stop()
+
+                    gen_text = font.render('Generating...', 1, (0,0,0))
+                    display.blit(gen_text, (220 , 400))
+                    pygame.display.flip()
 
                     start_chords = np.random.randint(0, len(input_chords)-1)
                     start_dur = np.random.randint(0, len(input_dur) -1)
@@ -198,7 +222,7 @@ def run_GUI(piano_roll, size_x, size_y):
                     dur_pattern = input_dur[start_dur]
                     
                     print('generating notes...')
-                    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur, temp/100)
+                    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur, temp/50)
 
                     generate_midi(predicted_notes, 'test.mid')
 
@@ -223,7 +247,6 @@ def run_GUI(piano_roll, size_x, size_y):
                         b.color = (150,150,150)
                     else:
                         b.color = (100,100,100)
-
 
         display.fill(WHITE)
 
