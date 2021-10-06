@@ -123,6 +123,7 @@ def ProcessMidis(dir, seq_len):
     # Now we need to extract the notes, chords and durations from the songs
     original_chords = [[] for _ in original_scores] #empty list of lists
     original_durations = [[] for _ in original_scores]
+    original_volumes = [[] for _ in original_scores]
     original_keys = []
 
     for i, song in enumerate(original_scores):
@@ -135,12 +136,14 @@ def ProcessMidis(dir, seq_len):
                 # add note
                 original_chords[i].append(str(element.pitch))
                 original_durations[i].append(element.duration.quarterLength)
+                original_volumes[i].append(element.volume.velocityScalar)
             # if chord
             elif isinstance(element, chord.Chord):
                 # add all notes making up chord
                 original_chords[i].append('.'.join(str(n) for n in element.pitches))
                 original_durations[i].append(element.duration.quarterLength)
-
+                original_volumes[i].append(element.volume.velocityScalar)
+            
         print(str(i))
 
 
@@ -154,17 +157,23 @@ def ProcessMidis(dir, seq_len):
     unique_dur = np.unique([i for s in original_durations for i in s])
     dur_to_int = dict(zip(unique_dur, list(range(0, len(unique_dur)))))
 
+    unique_vol = np.unique([i for s in original_volumes for i in s])
+    vol_to_int = dict(zip(unique_vol, list(range(0, len(unique_vol)))))
+
     # We also need dictionaries to convert the other way
     int_to_chord = {i: c for c, i in chord_to_int.items()}
     int_to_dur = {i: c for c, i in dur_to_int.items()}
+    int_to_vol = {i: c for c, i in vol_to_int.items()}
 
     # Lastly we can make our training sequences and target notes
 
     train_chords = []
     train_dur = []
+    train_vol = []
 
     target_chords = []
     target_dur = []
+    target_vol = []
 
     # loop through the chords
     for s in range(len(original_chords)):
@@ -181,34 +190,48 @@ def ProcessMidis(dir, seq_len):
             train_dur.append(dur_list[i:i+seq_len])
             target_dur.append(dur_list[i+1])
 
+    for d in range(len(original_volumes)):
+        vol_list = [vol_to_int[s] for s in original_volumes[d]]
+        for i in range(len(vol_list)-seq_len):
+            train_vol.append(vol_list[i:i+seq_len])
+            target_vol.append(vol_list[i+1])
+
     # Reshape to fit LSTM
     input_chords = np.reshape(np.array(train_chords), (len(train_chords), seq_len,1))
     input_dur = np.reshape(np.array(train_dur), (len(train_dur), seq_len, 1))
+    input_vol = np.reshape(np.array(train_vol), (len(train_vol), seq_len, 1))
     # Normalise these
     input_chords = input_chords / float(len(unique_chords))
     input_dur = input_dur / float(len(unique_dur))
+    # This should already be normalised since it's volume.velocityScalar
+    input_vol = input_vol / float(len(unique_vol))
     # Make target notes categorical
     
     target_dur = np_utils.to_categorical(target_dur)
     target_chords = np_utils.to_categorical(target_chords)
+    target_vol = np_utils.to_categorical(target_vol)
 
     no_chords = target_chords.shape[1]
     no_dur = target_dur.shape[1]
+    no_vol = target_vol.shape[1]
 
     # Save all the important data structures so this whole func doesnt have to run every time
     print('Saving Data...')
     save_list(input_chords, 'Processed_Data', 'input_chords')
     save_list(input_dur, 'Processed_Data', 'input_dur')
+    save_list(input_vol, 'Processed_Data', 'input_vol')
     save_list(target_chords, 'Processed_Data', 'target_chords')
     save_list(target_dur, 'Processed_Data', 'target_dur')
+    save_list(target_vol, 'Processed_Data', 'target_vol')
     save_list(int_to_chord, 'Processed_Data', 'int_to_chord')
     save_list(int_to_dur, 'Processed_Data', 'int_to_dur')
+    save_list(int_to_vol, 'Processed_Data', 'int_to_vol')
     print('Saving Complete...')
 
-    return (input_chords, input_dur, target_chords, target_dur, no_chords, no_dur, int_to_chord, int_to_dur)
+    return (input_chords, input_dur, input_vol, target_chords, target_dur, target_vol, no_chords, no_dur, no_vol, int_to_chord, int_to_dur, int_to_vol)
 
 
-def create_lstm(input_chords, no_chords, input_dur, no_dur):
+def create_lstm(input_chords, no_chords, input_dur, no_dur, input_vol, no_vol):
     
     # Notes Input branch
     chord_input_layer = Input(shape=(input_chords.shape[1], input_chords.shape[2]))
@@ -230,8 +253,18 @@ def create_lstm(input_chords, no_chords, input_dur, no_dur):
     # Dropout to prevent overfitting
     dur_input = Dropout(0.2)(dur_input)
 
+    # Volume input branch
+    vol_input_layer = Input(shape=(input_vol.shape[1], input_vol.shape[2]))
+    vol_input = LSTM(
+        256,
+        input_shape = (input_vol.shape[1], input_vol.shape[2]),
+        return_sequences = True
+    )(vol_input_layer)
+    # Dropout to prevent overfitting
+    vol_input = Dropout(0.2)(vol_input)
+
     # Concatenate the inputs
-    inputs = concatenate([chord_input, dur_input])
+    inputs = concatenate([chord_input, dur_input, vol_input])
 
     # Input goes through another LSTM
     x = LSTM(512, return_sequences=True)(inputs)
@@ -253,14 +286,19 @@ def create_lstm(input_chords, no_chords, input_dur, no_dur):
     output_dur = Dropout(0.3)(output_dur)
     output_dur = Dense(no_dur, activation='softmax', name='Duration')(output_dur)
 
+    output_vol = Dense(128, activation='relu')(x)
+    output_vol = BatchNorm()(output_vol)
+    output_vol = Dropout(0.3)(output_vol)
+    output_vol = Dense(no_vol, activation='softmax', name='Volume')(output_vol)
+
     # Define model with inputs and outputs
-    model = Model(inputs= [chord_input_layer, dur_input_layer], outputs = [output_chords, output_dur])
+    model = Model(inputs= [chord_input_layer, dur_input_layer, vol_input_layer], outputs = [output_chords, output_dur, output_vol])
 
     model.compile(loss='categorical_crossentropy', optimizer='adam')
 
     return model
 
-def make_or_restore(checkpoint_dir, input_chords, no_chords, input_dur, no_dur):
+def make_or_restore(checkpoint_dir, input_chords, no_chords, input_dur, no_dur, input_vol, no_vol):
     ## Function that will restore the model to the most recent checkpoint or make a fresh one
 
     checkpoints = [checkpoint_dir + "/" + name for name in os.listdir(checkpoint_dir)]
@@ -282,7 +320,7 @@ def make_or_restore(checkpoint_dir, input_chords, no_chords, input_dur, no_dur):
     
     print("Creating a new model")
     initial_epoch = 0
-    return create_lstm(input_chords, no_chords, input_dur, no_dur), initial_epoch
+    return create_lstm(input_chords, no_chords, input_dur, no_dur, input_vol, no_vol), initial_epoch
 
 
 def find_initial_epoch(checkpoint_str):
@@ -305,7 +343,7 @@ def find_initial_epoch(checkpoint_str):
     return initial_epoch
 
 
-def train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch):
+def train(model, input_chords, input_dur, input_vol, target_chords, target_dur, target_vol, initial_epoch):
 
     checkpoint_dir = "./weights"
     if not os.path.exists(checkpoint_dir):
@@ -316,18 +354,18 @@ def train(model, input_chords, input_dur, target_chords, target_dur, initial_epo
 		filepath,
 		monitor='loss',
 		verbose=0,
-		save_best_only=True,
+		save_best_only=False,
 		mode='min',
 	)
     history = History()
     callbacks_list = [checkpoint, history]
 
-    model.fit([input_chords, input_dur],[target_chords, target_dur], 
+    model.fit([input_chords, input_dur, input_vol],[target_chords, target_dur, target_vol], 
             epochs=1000, batch_size=64, callbacks=callbacks_list, 
             verbose=1, initial_epoch = initial_epoch)
 
 
-def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur, temp):
+def generate_seq(model, chord_pattern, dur_pattern, vol_pattern, int_to_note, int_to_dur, int_to_vol, temp):
 
     prediction_output = []
 
@@ -337,12 +375,15 @@ def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur, tem
         predictedNote = chord_prediction_input[-1][-1][-1]
 
         dur_prediction_input = np.reshape(dur_pattern, (1, len(dur_pattern), 1))
+
+        vol_prediction_input = np.reshape(vol_pattern, (1, len(vol_pattern), 1))
     
-        prediction = model.predict([chord_prediction_input, dur_prediction_input])
+        prediction = model.predict([chord_prediction_input, dur_prediction_input, vol_prediction_input])
 
         # Use the sample function to add some extra randomness
         prediction[0] = sample(prediction[0], temp)
         prediction[1] = sample(prediction[1], temp)
+        prediction[2] = sample(prediction[2], temp)
 
         chord_index = np.argmax(prediction[0])
         chord_result = int_to_note[chord_index]
@@ -350,15 +391,20 @@ def generate_seq(model, chord_pattern, dur_pattern, int_to_note, int_to_dur, tem
         dur_index = np.argmax(prediction[1])
         dur_result = int_to_dur[dur_index]
 
-        print("Next note: " + str(chord_result) + " - Duration: " + str(dur_result))
+        vol_index = np.argmax(prediction[2])
+        vol_result = int_to_vol[vol_index]
+
+        print("Next note: " + str(chord_result) + " - Duration: " + str(dur_result) + " - Volume: " + str(vol_result))
 		
-        prediction_output.append([chord_result, dur_result])
+        prediction_output.append([chord_result, dur_result, vol_result])
 
         chord_pattern = np.append(chord_pattern, chord_index)
         dur_pattern = np.append(dur_pattern, dur_index)
+        vol_pattern = np.append(vol_pattern, vol_index)
 
         chord_pattern = chord_pattern[1:len(chord_pattern)]
         dur_pattern = dur_pattern[1:len(dur_pattern)]
+        vol_pattern = vol_pattern[1:len(vol_pattern)]
     
     return prediction_output
 
@@ -384,6 +430,7 @@ def generate_midi(predicted_notes, midi_name):
     for pred_note in predicted_notes:
         current_chord = pred_note[0]
         current_dur = pred_note[1]
+        current_vol = pred_note[2]
 
         if('.' in current_chord) or current_chord.isdigit():
             notes_in_chord = current_chord.split('.')
@@ -398,7 +445,7 @@ def generate_midi(predicted_notes, midi_name):
             new_chord = chord.Chord(notes)
             new_chord.offset = offset
             new_chord.quarterLength = current_dur
-            new_chord.volume.velocityScalar =0.5
+            new_chord.volume.velocityScalar = current_vol
             output_notes.append(new_chord)
         
         else:
@@ -406,7 +453,7 @@ def generate_midi(predicted_notes, midi_name):
             new_note.offset = offset
             new_note.storedInstrument = instrument.Piano()
             new_note.quarterLength = current_dur
-            new_note.volume.velocityScalar =0.5
+            new_note.volume.velocityScalar = current_vol
             output_notes.append(new_note)
 
         offset += 0.5
@@ -419,22 +466,28 @@ def prep_data():
     print('Loading Data...')
     input_chords = load_list('Processed_Data', 'input_chords')
     input_dur = load_list('Processed_Data', 'input_dur')
+    input_vol = load_list('Processed_Data', 'input_vol')
     target_chords = load_list('Processed_Data', 'target_chords')
     target_dur = load_list('Processed_Data', 'target_dur')
+    target_vol = load_list('Processed_Data', 'target_vol')
     int_to_chord = load_list('Processed_Data', 'int_to_chord')
     int_to_dur = load_list('Processed_Data', 'int_to_dur')
+    int_to_vol = load_list('Processed_Data', 'int_to_vol')
     print('... Loading Complete')
 
     print(target_chords.shape)
     print(target_dur.shape)
+    print(target_vol.shape)
 
     no_chords = target_chords.shape[1]
     no_dur = target_dur.shape[1]
+    no_vol = target_vol.shape[1]
 
     print('Number of chords:'+ str(no_chords))
     print('Number of durations:'+ str(no_dur))
+    print('Number of volumes:'+ str(no_vol))
 
-    return input_chords, input_dur, target_chords, target_dur, int_to_chord, int_to_dur, no_chords, no_dur
+    return input_chords, input_dur, input_vol, target_chords, target_dur, target_vol, int_to_chord, int_to_dur, int_to_vol, no_chords, no_dur, no_vol
 
 def main():
 
@@ -442,23 +495,24 @@ def main():
     tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
 
     #Scrape('piano/')
-    #ProcessMidis('piano/', 100)
+    #input_chords, input_dur, input_vol, target_chords, target_dur, target_vol, no_chords, no_dur, no_vol, int_to_chord, int_to_dur, int_to_vol = ProcessMidis('piano/', 100)
 
     # Load the data, comment out ProcessMidis once the Processed_Data folder is full
-    input_chords, input_dur, target_chords, target_dur, int_to_chord, int_to_dur, no_chords, no_dur = prep_data()
+    input_chords, input_dur, input_vol, target_chords, target_dur, target_vol, int_to_chord, int_to_dur, int_to_vol, no_chords, no_dur, no_vol = prep_data()
     
-
-    model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur)
-    #train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
+    model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur, input_vol, no_vol)
+    train(model, input_chords, input_dur, input_vol, target_chords, target_dur, target_vol, initial_epoch)
 
     # Choose random start sequence
     start_chords = np.random.randint(0, len(input_chords)-1)
-    start_dur = np.random.randint(0, len(input_dur) -1)
+    start_dur = np.random.randint(0, len(input_dur)-1)
+    start_vol = np.random.randint(0, len(input_vol)-1)
 
     chord_pattern = input_chords[start_chords]
     dur_pattern = input_dur[start_dur]
+    vol_pattern = input_vol[start_vol]
 
-    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur, 0.4)
+    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, vol_pattern, int_to_chord, int_to_dur, int_to_vol, 0.4)
 
     generate_midi(predicted_notes, 'test.mid')
 
