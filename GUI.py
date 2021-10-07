@@ -114,12 +114,9 @@ def crop_array(array, padding):
 
 def run_GUI(piano_roll, size_x, size_y):
 
-    input_chords, input_dur, target_chords, target_dur, int_to_chord, int_to_dur, no_chords, no_dur = prep_data()
+    input_chords, input_dur, input_vol, target_chords, target_dur, target_vol, int_to_chord, int_to_dur, int_to_vol, no_chords, no_dur, no_vol = prep_data()
     
-
-    model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur)
-    #train(model, input_chords, input_dur, target_chords, target_dur, initial_epoch)
-    
+    model, initial_epoch = make_or_restore('./weights', input_chords, no_chords, input_dur, no_dur, input_vol, no_vol)
     
     pygame.init()
     clock = pygame.time.Clock()
@@ -216,13 +213,14 @@ def run_GUI(piano_roll, size_x, size_y):
                     pygame.display.flip()
 
                     start_chords = np.random.randint(0, len(input_chords)-1)
-                    start_dur = np.random.randint(0, len(input_dur) -1)
+                    start_dur = np.random.randint(0, len(input_dur)-1)
+                    start_vol = np.random.randint(0, len(input_vol)-1)
 
                     chord_pattern = input_chords[start_chords]
                     dur_pattern = input_dur[start_dur]
-                    
-                    print('generating notes...')
-                    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, int_to_chord, int_to_dur, temp/50)
+                    vol_pattern = input_vol[start_vol]
+
+                    predicted_notes = generate_seq(model, chord_pattern, dur_pattern, vol_pattern, int_to_chord, int_to_dur, int_to_vol, 0.4)
 
                     generate_midi(predicted_notes, 'test.mid')
 
